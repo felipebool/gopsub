@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"google.golang.org/api/iterator"
+	"github.com/felipebool/mockub/internal/client"
 	"os"
 	"text/tabwriter"
 
@@ -11,110 +11,88 @@ import (
 
 var topicCmd = &cobra.Command{
 	Use:   "topic",
-	Short: "Manages topics",
-	Run: func(cmd *cobra.Command, args []string) {
-		_ = cmd.Help()
-	},
+	Short: "handles topic creation, removal and listing",
 }
 
 var createTopicCmd = &cobra.Command{
 	Use:   "create",
-	Short: "creates topic",
-	Run: func(cmd *cobra.Command, args []string) {
-		client := GetGCloudClient(cmd.Context(), ProjectID)
-
-		t := client.Topic(TopicID)
-		ok, err := t.Exists(cmd.Context())
+	Short: "creates topics",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.NewClient(cmd.Context(), Project, Host, Port)
 		if err != nil {
-			fmt.Println(err)
+			return err
 		}
 
-		if ok {
-			fmt.Printf("topic %s already exists\n", TopicID)
-			os.Exit(0)
+		if err = c.CreateTopic(&client.Topic{ID: TopicID}); err != nil {
+			return err
 		}
 
-		_, err = client.CreateTopic(cmd.Context(), TopicID)
-		if err != nil {
-			fmt.Printf("unable to create topic %s - %v\n", TopicID, err)
-			os.Exit(23)
-		}
-
-		fmt.Printf("topic %s create\n", TopicID)
+		return nil
 	},
 }
 
 var removeTopicCmd = &cobra.Command{
 	Use:   "remove",
-	Short: "remove topic",
-	Run: func(cmd *cobra.Command, args []string) {
-		client := GetGCloudClient(cmd.Context(), ProjectID)
-
-		t := client.Topic(TopicID)
-		ok, err := t.Exists(cmd.Context())
+	Short: "removes topic",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.NewClient(cmd.Context(), Project, Host, Port)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(23)
+			return err
 		}
 
-		if !ok {
-			fmt.Printf("topic %s does not exist\n", TopicID)
-			os.Exit(0)
+		if err = c.RemoveTopic(&client.Topic{ID: TopicID}); err != nil {
+			return err
 		}
 
-		if err := t.Delete(cmd.Context()); err != nil {
-			fmt.Printf("unable to delete topic %s - %v\n", TopicID, err)
-			os.Exit(23)
-		}
-
-		fmt.Printf("topic %s removed\n", TopicID)
+		return nil
 	},
 }
 
 var listTopicCmd = &cobra.Command{
 	Use:   "list",
-	Short: "list topics",
-	Run: func(cmd *cobra.Command, args []string) {
-		client := GetGCloudClient(cmd.Context(), ProjectID)
+	Short: "lists topics",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.NewClient(cmd.Context(), Project, Host, Port)
+		if err != nil {
+			return err
+		}
 
-		topics := client.Topics(cmd.Context())
+		topics, err := c.ListTopics()
+		if err != nil {
+			return err
+		}
 
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 0, 1, ' ', 0)
-
-		_, _ = fmt.Fprintln(w, "ID\tName")
-		for {
-			t, err := topics.Next()
-			if err == iterator.Done {
-				break
-			}
-
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			out := fmt.Sprintf("%s\t%s\n", t.ID(), t.String())
-
-			_, _ = fmt.Fprint(w, out)
+		_, _ = fmt.Fprint(w, "ID\tName")
+		for _, t := range topics {
+			_, _ = fmt.Fprintf(w, "%s\t%s\n", t.ID, t.Name)
 		}
 
 		_ = w.Flush()
+		return nil
 	},
 }
 
 func init() {
-	createTopicCmd.Flags().StringVarP(&TopicID, "id", "i", "", "")
-	removeTopicCmd.Flags().StringVarP(&TopicID, "id", "i", "", "")
+	createTopicCmd.Flags().StringVarP(
+		&TopicID,
+		"id",
+		"i",
+		"",
+		"id of the topic to be created",
+	)
 
-	createTopicCmd.Flags().StringVarP(&ProjectID, "project-id", "p", "", "")
-	removeTopicCmd.Flags().StringVarP(&ProjectID, "project-id", "p", "", "")
-	listTopicCmd.Flags().StringVarP(&ProjectID, "project-id", "p", "", "")
+	removeTopicCmd.Flags().StringVarP(
+		&TopicID,
+		"id",
+		"i",
+		"",
+		"id of the topic to be removed",
+	)
 
 	_ = createTopicCmd.MarkFlagRequired("id")
 	_ = removeTopicCmd.MarkFlagRequired("id")
-	_ = createTopicCmd.MarkFlagRequired("project-id")
-	_ = removeTopicCmd.MarkFlagRequired("project-id")
-	_ = listTopicCmd.MarkFlagRequired("project-id")
 
 	topicCmd.AddCommand(createTopicCmd)
 	topicCmd.AddCommand(removeTopicCmd)

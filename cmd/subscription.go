@@ -1,148 +1,118 @@
 package cmd
 
 import (
-	"cloud.google.com/go/pubsub"
 	"fmt"
-	"google.golang.org/api/iterator"
-	"os"
-	"time"
-
+	"github.com/felipebool/mockub/internal/client"
 	"github.com/spf13/cobra"
+	"os"
 	"text/tabwriter"
 )
 
 var subscriptionCmd = &cobra.Command{
 	Use:   "subscription",
-	Short: "A brief description of your command",
-	Run: func(cmd *cobra.Command, args []string) {
-		_ = cmd.Help()
-	},
+	Short: "handles subscription creation, removal and listing",
 }
 
 var createSubscriptionCmd = &cobra.Command{
 	Use:   "create",
-	Short: "creates a subscription",
-	Run: func(cmd *cobra.Command, args []string) {
-		client := GetGCloudClient(cmd.Context(), ProjectID)
-		
-		t := client.Topic(TopicID)
-		ok, err := t.Exists(cmd.Context())
+	Short: "creates subscriptions",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.NewClient(cmd.Context(), Project, Host, Port)
 		if err != nil {
-			fmt.Printf("unable to retrieve topic %s - %v\n", TopicID, err)
-			os.Exit(23)
+			return err
 		}
 
-		if !ok {
-			fmt.Printf("topic %s does not exist\n", TopicID)
-			os.Exit(23)
+		t := &client.Topic{ID: TopicID}
+		s := &client.Subscription{ID: SubscriptionID}
+		if SubscriptionEndpoint != "" {
+			s.Endpoint = SubscriptionEndpoint
 		}
 
-		subConfiguration := pubsub.SubscriptionConfig{
-			Topic:            t,
-			AckDeadline:      10 * time.Second,
-			ExpirationPolicy: 25 * time.Hour,
+		if err = c.CreateSubscription(t, s); err != nil {
+			return err
 		}
 
-		endpoint, err := cmd.Flags().GetString("endpoint")
-		if err == nil {
-			subConfiguration.PushConfig = pubsub.PushConfig{Endpoint: endpoint}
-		}
-
-		_, err = client.CreateSubscription(
-			cmd.Context(), 
-			SubscriptionID, 
-			subConfiguration,
-		)
-
-		if err != nil {
-			fmt.Printf("unable to create subscription %s to topic %s - %v\n", SubscriptionID, TopicID, err)
-			os.Exit(23)
-		}
-
-		fmt.Printf("subscription %s to topic %s created\n", SubscriptionID, TopicID)
+		return nil
 	},
 }
 
 var removeSubscriptionCmd = &cobra.Command{
 	Use:   "remove",
-	Short: "removes a subscription",
-	Run: func(cmd *cobra.Command, args []string) {
-		client := GetGCloudClient(cmd.Context(), ProjectID)
-
-		subscription := client.Subscription(SubscriptionID)
-		ok, err := subscription.Exists(cmd.Context())
+	Short: "removes subscriptions",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.NewClient(cmd.Context(), Project, Host, Port)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(23)
+			return err
 		}
 
-		if !ok {
-			fmt.Printf("subscription %s does not exist\n", SubscriptionID)
-			os.Exit(0)
+		s := &client.Subscription{ID: SubscriptionID}
+		if err = c.RemoveSubscription(s); err != nil {
+			return err
 		}
 
-		if err := subscription.Delete(cmd.Context()); err != nil {
-			fmt.Printf("unable to delete subscription %s - %v\n", SubscriptionID, err)
-			os.Exit(23)
-		}
-
-		fmt.Printf("subscription %s removed\n", SubscriptionID)
+		return nil
 	},
 }
 
 var listSubscriptionCmd = &cobra.Command{
 	Use:   "list",
-	Short: "list subscriptions",
-	Run: func(cmd *cobra.Command, args []string) {
-		client := GetGCloudClient(cmd.Context(), ProjectID)
-		subscriptions := client.Subscriptions(cmd.Context())
+	Short: "lists subscriptions",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.NewClient(cmd.Context(), Project, Host, Port)
+		if err != nil {
+			return err
+		}
+
+		subscriptions, err := c.ListSubscriptions()
+		if err != nil {
+			return err
+		}
 
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 0, 1, ' ', 0)
-
-		_, _ = fmt.Fprintln(w, "ID\tName\tTopic\tEndpoint")
-		for {
-			s, err := subscriptions.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			c, err := s.Config(cmd.Context())
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			topic := c.Topic.String()
-			out := fmt.Sprintf("%s\t%s\t%s\t%s\n", s.ID(), s.String(), topic, c.PushConfig.Endpoint)
-
-			_, _ = fmt.Fprint(w, out)
+		_, _ = fmt.Fprint(w, "ID\tName\tTopic\tEndpoint")
+		for _, s := range subscriptions {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ID, s.Name, s.TopicID, s.Endpoint)
 		}
+
 		_ = w.Flush()
+		return nil
 	},
 }
 
 func init() {
-	createSubscriptionCmd.Flags().StringVarP(&SubscriptionID, "id", "i", "", "")
-	removeSubscriptionCmd.Flags().StringVarP(&SubscriptionID, "id", "i", "", "")
+	createSubscriptionCmd.Flags().StringVarP(
+		&SubscriptionID,
+		"id",
+		"i",
+		"",
+		"id of the subscription to be created",
+	)
+	createSubscriptionCmd.Flags().StringVarP(
+		&TopicID,
+		"topic-id",
+		"t",
+		"",
+		"id of the topic to subscribe to",
+	)
+	createSubscriptionCmd.Flags().StringVarP(
+		&SubscriptionEndpoint,
+		"endpoint",
+		"e",
+		"",
+		"endpoint to push messages to, when provided subscription would be of type push",
+	)
 
-	createSubscriptionCmd.Flags().StringVarP(&ProjectID, "project-id", "p", "", "")
-	removeSubscriptionCmd.Flags().StringVarP(&ProjectID, "project-id", "p", "", "")
-	listSubscriptionCmd.Flags().StringVarP(&ProjectID, "project-id", "p", "", "")
+	removeSubscriptionCmd.Flags().StringVarP(
+		&SubscriptionID,
+		"id",
+		"i",
+		"",
+		"id of the subscription to be removed",
+	)
 
-	createSubscriptionCmd.Flags().StringVarP(&TopicID, "topic-id", "t", "", "")
-	createSubscriptionCmd.Flags().StringVarP(&Endpoint, "endpoint", "e", "", "")
-	
 	_ = createSubscriptionCmd.MarkFlagRequired("id")
 	_ = removeSubscriptionCmd.MarkFlagRequired("id")
-	_ = listSubscriptionCmd.MarkFlagRequired("id")
-	
-	_ = createSubscriptionCmd.MarkFlagRequired("project-id")
-	_ = removeSubscriptionCmd.MarkFlagRequired("project-id")
-	_ = listSubscriptionCmd.MarkFlagRequired("project-id")
-	
 	_ = createSubscriptionCmd.MarkFlagRequired("topic-id")
 
 	subscriptionCmd.AddCommand(createSubscriptionCmd)
