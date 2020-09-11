@@ -1,27 +1,27 @@
 package cmd
 
 import (
-	"cloud.google.com/go/pubsub"
-	"context"
 	"fmt"
-	"github.com/felipebool/mockub/internal/client"
 	"github.com/spf13/cobra"
 	"os"
-
-	homedir "github.com/mitchellh/go-homedir"
-	"github.com/spf13/viper"
 )
 
-var cfgFile string
 var TopicID string
+
+var Project string
+
 var SubscriptionID string
-var ProjectID string
-var Endpoint string
-var Message string
+var SubscriptionEndpoint string
+
+var PublishData string
+var PublishDataFromFile string
+
+var Host string
+var Port string
 
 var rootCmd = &cobra.Command{
-	Use:   "mocksub",
-	Short: "An utility to interact with gcloud pubsub emulator",
+	Use:   "gopsub",
+	Short: "an utility to interact with gcloud pubsub emulator",
 }
 
 func Execute() {
@@ -32,44 +32,29 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.mocksub.yaml)")
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
+	rootCmd.PersistentFlags().StringVarP(
+		&Host,
+		"host",
+		"",
+		"localhost",
+		"gcloud emulator host",
+	)
 
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+	rootCmd.PersistentFlags().StringVarP(
+		&Port,
+		"port",
+		"",
+		"8085",
+		"gcloud emulator port",
+	)
 
-		// Search config in home directory with name ".mocksub" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".mocksub")
-	}
+	rootCmd.PersistentFlags().StringVarP(
+		&Project,
+		"project",
+		"p",
+		"",
+		"pubsub project identifier",
+	)
 
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
-}
-
-func GetGCloudClient(ctx context.Context, ProjectID string) *pubsub.Client {
-	c, err := client.NewClient(ctx, ProjectID)
-	if err != nil {
-		fmt.Printf("unable to connect to server - %v", err)
-		os.Exit(23)
-	}
-
-	return c
-
-
+	_ = rootCmd.MarkFlagRequired("project")
 }

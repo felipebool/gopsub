@@ -1,39 +1,76 @@
 package cmd
 
 import (
-	"cloud.google.com/go/pubsub"
+	"errors"
+	"github.com/felipebool/mockub/internal/client"
 	"github.com/spf13/cobra"
-	"time"
+	"io/ioutil"
 )
 
 var publishCmd = &cobra.Command{
 	Use:   "publish",
-	Short: "A brief description of your command",
-	Run: func(cmd *cobra.Command, args []string) {
-		message := pubsub.Message{
-			ID:              "123",
-			Data:            nil,
-			Attributes:      nil,
-			PublishTime:     time.Now(),
+	Short: "handles message publishing",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dataToSend, err := getDataForPublish(PublishData, PublishDataFromFile)
+		if err != nil {
+			return err
 		}
 
-		client := GetGCloudClient(cmd.Context(), ProjectID)
-		t := client.Topic(TopicID)
-		t.Publish(cmd.Context(), &message)
+		t := &client.Topic{ID: TopicID}
+		m := &client.Message{Content: dataToSend}
+
+		c, err := client.NewClient(cmd.Context(), Project, Host, Port)
+		if err != nil {
+			return err
+		}
+
+		return c.Publish(t, m)
 	},
 }
 
+func getDataForPublish(message, messageFilePath string) ([]byte, error) {
+	if message == "" && messageFilePath == "" {
+		return nil, errors.New("you have to provide at least one source of data")
+	}
+
+	if message != "" {
+		return []byte(message), nil
+	}
+
+	d, err := ioutil.ReadFile(messageFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
 func init() {
-	publishCmd.Flags().StringVarP(&Message, "data", "d", "", "")
-	//publishCmd.Flags().StringVarP(&Message, "data-from-file", "f", "", "")
+	publishCmd.Flags().StringVarP(
+		&PublishData,
+		"data",
+		"d",
+		"",
+		"data to be published (has precedence over --data-from-file)",
+	)
 
-	publishCmd.Flags().StringVarP(&Message, "attributes", "a", "", "")
-	publishCmd.Flags().StringVarP(&Message, "project", "p", "", "")
-	publishCmd.Flags().StringVarP(&Message, "id", "i", "", "")
+	publishCmd.Flags().StringVarP(
+		&TopicID,
+		"topic-id",
+		"t",
+		"",
+		"id of topic to publish messages to",
+	)
 
-	_ = publishCmd.MarkFlagRequired("data")
-	_ = publishCmd.MarkFlagRequired("project")
-	_ = publishCmd.MarkFlagRequired("id")
+	publishCmd.Flags().StringVarP(
+		&PublishDataFromFile,
+		"data-from-file",
+		"",
+		"",
+		"path to a file to read the data to publish",
+	)
+
+	_ = publishCmd.MarkFlagRequired("topic-id")
 
 	rootCmd.AddCommand(publishCmd)
 }
