@@ -1,4 +1,4 @@
-module github.com/felipebool/mockub
+module github.com/felipebool/gopsub
 
 go 1.15
 
