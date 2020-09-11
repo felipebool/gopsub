@@ -1,71 +1,70 @@
 # Gopsub
 
 This is a simple, command line client for GCloud PubSub emulator. The idea is to help
-debugging applications which use GCloud PubSub by providing a simple interface for
-topic/subscriptions creation and message publishing.
+local debug of applications using GCloud PubSub, by providing a simple interface for
+topic/subscription creation/removal and message publishing.
 
 # Installation
-Not done yet.
+Run `go get github.com/felipebool/gopsub`. 
 
 # Commands
 `gopsub` allows you to create, remove and list topics and subscriptions,
-and message publishing.
+and publish messages.
+
+## Global required flags
+* `--project` or `-p`: project id
+
+## Global optional flags
+* `--host`: gcloud pubsub emulator host, default value is `localhost`
+* `--post`: gcloud pubsub emulator port, default value is `8085`
 
 ## Topic
 
 ### List topics
-` PUBSUB_EMULATOR_HOST=localhost:8085 go run main.go topic list` shows help for
-topic listing.
+The following command lists all topics for project `my-project`
 
-#### Required flags
-* `--project-id` or `-p`: project id
+`gopsub --project my-project topic list`
 
 ### Create topic
-` PUBSUB_EMULATOR_HOST=localhost:8085 go run main.go topic create` shows help for
-topic creation.
+The following command creates a topic called `topic1` in project `my-project`
 
-#### Required flags
-* `--project-id` or `-p`: project id
-* `--id` or `-i`: new topic id
+`gopsub --project my-project topic create --id topic1`
 
 ### Remove topic
-` PUBSUB_EMULATOR_HOST=localhost:8085 go run main.go topic remove` shows help for
-topic removal.
+The following command removes topic `topic1` from project `my-project`
 
-#### Required flags
-* `--project-id` or `-p`: project id
-* `--id` or `-i`: topic id to be removed
-
+`gopsub --project my-project topic remove --id topic1`
 
 ## Subscription
 
 ### List subscriptions
-` PUBSUB_EMULATOR_HOST=localhost:8085 go run main.go subscription list` shows help for
-subscription listing.
+The following command lists all subscriptions for project `my-project`
 
-#### Required flags
-* `--project-id` or `-p`: project id
+`gopsub --project my-project subscription list`
 
 ### Create subscription
-` PUBSUB_EMULATOR_HOST=localhost:8085 go run main.go subscription create` shows help for
-subscription creation.
+The following command creates a subscription called `subscription1` in project `my-project`
 
-#### Required flags
-* `--project-id` or `-p`: project id
-* `--id` or `-i`: new subscription id
-* `--topic-id` or `-t`: topic id to create subscription to
+`gopsub --project my-project subscription create --id subscription1`
 
-#### Optional fields
-* `--endpoint` or  `-e`: when present, subscription will be of type push and push
-messages to endpoint
+To create a push subscription, just provide a valid endpoint using `--endpoint` or `-e`
 
-### Remove topic
-` PUBSUB_EMULATOR_HOST=localhost:8085 go run main.go topic remove` shows help for
-subscription removal.
+`gopsub --project my-project subscription create --id subscription1 --endpoint http://localhost/push`
 
-#### Required fields
-* `--project-id` or `-p`: project id
-* `--id` or `-i`: subscription id to be removed
+### Remove subscription
+The following command removes subscription `subscription1` from project `my-project`
+
+`gopsub --project my-project subscription remove --id subscription1`
 
 ## Publish
-Coming
+The following command publishes a message passed by `--data` to topic `topic1`
+
+`gopsub --project my-project publish --topic-id topic1 --data '{"username":"xyz","password":"xyz"}'`
+
+If you want to publish more complex data, you can use `--data-from-file` passing
+a path to a file. `gopsub` will read the content and publish it.
+
+`gopsub --project my-project publish --topic-id topic1 --data-from-file /tmp/lol.json`
+
+if `--data` and `--data-from-file` are both provided, the value passed through `--data`
+will be used.
