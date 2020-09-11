@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/felipebool/mockub/internal/client"
+	"github.com/felipebool/gopsub/internal/client"
 	"github.com/spf13/cobra"
 	"os"
 	"text/tabwriter"

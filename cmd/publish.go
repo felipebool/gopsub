@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"errors"
-	"github.com/felipebool/mockub/internal/client"
+	"github.com/felipebool/gopsub/internal/client"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 )
